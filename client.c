@@ -73,14 +73,14 @@ int wait_for_string_input(const char *target) {
     }
 }
 
-
-
 void send_msg_handler(){
     char message[LENGTH] = {};
     char buffer[LENGTH + 64] = {}; // 增加缓冲区大小
     //printf("in send_msg\n");
     while (1) {
+        //printf("client line 82\n");
         str_overwrite_stdout();
+
         fgets(message, LENGTH, stdin);
         str_trim_lf(message, LENGTH);
         //printf("in while\n");
@@ -114,6 +114,7 @@ void recv_msg_handler() {   //處理從伺服器接收到的消息
       } 
       else {
           printf("%s", message);
+          //printf("client line 118\n");
           str_overwrite_stdout();
       }
     } 
@@ -273,4 +274,3 @@ int main(int argc, char **argv){
 
 	return EXIT_SUCCESS;
 }
-

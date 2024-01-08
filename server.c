@@ -55,6 +55,11 @@ struct record_arr{
 };
 struct record_arr record_array;
 //------------------------------------
+void str_overwrite_stdout(){
+    printf("\r%s", "> ");	//\r:回車(覆蓋該行使光標回到開頭)
+    fflush(stdout);
+}
+//------------------------------------
 void createNode(int room, char names[][NAME_SIZE], int count) {
     Blacklist *newNode = (Blacklist *)malloc(sizeof(Blacklist));
     if (newNode != NULL) {
@@ -109,7 +114,6 @@ int findnode(Blacklist* head, int room, char *name) {
 }
 
 client_t *clients[MAX_CLIENTS];
-
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;	//mutex互斥鎖
 
 // ==============================================================
@@ -134,7 +138,7 @@ void clear_file() {
 // 初始化文件，打開文件寫入
 void init_file() {
 	//清除文件
-	clear_file();
+	//clear_file();
 	pthread_mutex_lock(&file_mutex);  // 加鎖
 	char filename[32];
 	sprintf(filename, "room%d.txt", room);
@@ -146,9 +150,43 @@ void init_file() {
     }
 	pthread_mutex_unlock(&file_mutex);  // 解鎖
 }
+void send_message_to_specific_user(char *s, int uid);
+
+//-----讀取聊天室訊息-------
+void read_record_file(int target_user_uid) {
+    pthread_mutex_lock(&file_mutex);  // 加鎖
+    char filename[32];
+    sprintf(filename, "room%d.txt", room);
+    logfile = fopen(filename, "a+"); // 以讀寫模式開啟檔案
+    if (logfile == NULL) {
+        perror("ERROR: Could not open file");
+        exit(EXIT_FAILURE);
+    }
+    // 將檔案指標移到檔案開頭
+    fseek(logfile, 0, SEEK_SET);
+	// 讀取並顯示檔案內容
+    char line[1000]; // 假設一行最多1000個字元
+	send_message_to_specific_user("///---Chat Log---///\n", target_user_uid);
+	int line_ct=0;
+    while (fgets(line, sizeof(line), logfile) != NULL) {
+		char line_to_print[1002];
+		if(line_ct!=0){
+			strcpy(line_to_print,"> ");
+			strcat(line_to_print, line); // 將 str2 附加到 str1 的末尾
+		}
+		printf("%s",line_to_print);
+		send_message_to_specific_user(line_to_print, target_user_uid);
+		line_ct++;
+        //printf("Hi\n"); // 每次讀取一行，直到達到檔案結尾
+    }
+	send_message_to_specific_user("> ///End of Chat Log///\n", target_user_uid);
+    //fclose(logfile); // 關閉檔案 這邊不能關閉的原因是因為他是全域變數
+    pthread_mutex_unlock(&file_mutex);  // 解鎖
+}
 
 // 寫入消息到文件
 void write_to_file(const char *message) {
+	printf("is writing to file now\n");
 	pthread_mutex_lock(&file_mutex);  // 加鎖
     if (logfile != NULL) {
         fprintf(logfile, "%s", message);
@@ -186,10 +224,10 @@ typedef struct {
 } ThreadArgs;
 
 
-void str_overwrite_stdout() {
-    printf("\r%s", "> ");	//\r:回車(覆蓋該行使光標回到開頭)
-    fflush(stdout);
-}
+// void str_overwrite_stdout(){
+//     printf("\r%s", "> ");	//\r:回車(覆蓋該行使光標回到開頭)
+//     fflush(stdout);
+// }
 
 void str_trim_lf (char* arr, int length) {
   int i;
@@ -213,21 +251,18 @@ void print_client_addr(struct sockaddr_in addr){
 /* Add clients to queue */
 void queue_add(client_t *cl){
 	pthread_mutex_lock(&clients_mutex);		//pthread.h提供的函數
-
 	for(int i=0; i < MAX_CLIENTS; ++i){
 		if(!clients[i]){
 			clients[i] = cl;
 			break;
 		}
 	}
-
 	pthread_mutex_unlock(&clients_mutex);
 }
 
 /* Remove clients to queue */
 void queue_remove(int uid){
 	pthread_mutex_lock(&clients_mutex);
-
 	for(int i=0; i < MAX_CLIENTS; ++i){
 		if(clients[i]){
 			if(clients[i]->uid == uid){
@@ -236,14 +271,12 @@ void queue_remove(int uid){
 			}
 		}
 	}
-
 	pthread_mutex_unlock(&clients_mutex);
 }
 
 /* Send message to all clients except sender寄件人 */
 void send_message(char *s, int uid){
 	pthread_mutex_lock(&clients_mutex);
-
 	for(int i=0; i<MAX_CLIENTS; ++i){
 		if(clients[i]){
 			if(clients[i]->uid != uid){	//如果不是寄件人的話
@@ -254,7 +287,6 @@ void send_message(char *s, int uid){
 			}
 		}
 	}
-
 	pthread_mutex_unlock(&clients_mutex);
 }
 
@@ -266,16 +298,15 @@ void handle_account_request(HashTable *hashTable, char *request, int sockfd, int
 		send(sockfd, message, strlen(message), 0);
         return;
     }
-
 	if (strcmp(token, "login") == 0) {
         // 登錄請求
         char *name = strtok(NULL, " ");
         char *password = strtok(NULL, " ");
-
         if (name != NULL && password != NULL) {
             if (loginUser(hashTable, name, password)) {		//存在這帳號
 				char message[RESPONSE_SIZE] = "Login Success";
 				send(sockfd, message, sizeof(message), 0);
+				read_record_file(uid);
             } 
 			else {
                 char message[RESPONSE_SIZE] = "Login Fail";
@@ -299,7 +330,7 @@ void handle_account_request(HashTable *hashTable, char *request, int sockfd, int
 			fflush(accountfile);
 			// ================================================================================
 			char response[RESPONSE_SIZE];
-           	snprintf(response, RESPONSE_SIZE, "Hello!, %s\n", name);
+            snprintf(response, RESPONSE_SIZE, "Hello!, %s\n", name);
 			send(sockfd, response, sizeof(response), 0);
 			return;
 		}
@@ -411,7 +442,7 @@ void send_private_message(char *s, int receiver_uid){
 }
 
 int checkColonBeforeGreater(char* str) {
-	printf("str in checkColonBeforeGreater %s\n",str);
+	//printf("str in checkColonBeforeGreater %s\n",str);
     int foundColon = 0;
     int foundGreater = 0;
 
@@ -503,19 +534,18 @@ void *handle_client(void *arg){
 			if(strlen(buff_out) > 0){
 				//printf("The current buffouts: %s\n",buff_out);
 				//-------------------字串切割-----------------------
-				int find_member_bool,private_msg_bool;
+				int find_member_bool,private_msg_bool,read_bool;
 				char name[100],value[1000],private_str[1000],to_whom[1000],msg[1000],private_msg[2000],find_str[1000],sub_tar[100];
 				sscanf(buff_out,"%[^:]:%[^\n]", name, value);
 				removeLeadingSpaces(value);
 				sscanf(value,"%[^:]:%[^\n]",find_str,sub_tar);
 				if(strcmp(value,"member")==0)find_member_bool=1;
 				else find_member_bool=0;
+				if(strcmp(value,"read")==0)read_bool=1;
+				else read_bool=0;
 				if(checkColonBeforeGreater(value)){
 					// printf("here\n");
 					sscanf(value, "%[^:]:%[^>]>%[^:]s",private_str, to_whom,msg);
-					//printf("private_str: %s\n",private_str);
-					//printf("to_whom: %s\n", to_whom);
-					//printf("msg: %s\n",msg);
 					snprintf(private_msg, 1000, "Private message from ");
 					strncat(private_msg, cli->name, 2000-strlen(private_msg)-strlen(cli->name));
 					strncat(private_msg,":", 2000-strlen(private_msg)-1);
@@ -557,6 +587,10 @@ void *handle_client(void *arg){
 					int length = strlen(temp);
 					if (temp[length - 1] != '\n') sprintf(temp + length, "\n"); // 在字串尾端加上換行符號
 					send_message_to_specific_user(temp, cli->uid);
+				}
+				else if(read_bool==1){
+					printf("is reading now.....\n");
+					//read_record_file();
 				}
 				else{
 					// handle_account_request(&userAccountDatabase, buff_out, cli->sockfd, cli->uid);
@@ -613,50 +647,43 @@ int main(int argc, char **argv){
 	initHashTable(&userAccountDatabase);
 
 	char *ip = "127.0.0.1";
+	//char *ip="192.168.56.1";
 	int port = atoi(argv[1]);
 	room = port;
 	int option = 1;
 	int listenfd = 0, connfd = 0;
-  	struct sockaddr_in serv_addr;
-  	struct sockaddr_in cli_addr;
-  	pthread_t tid;
+	struct sockaddr_in serv_addr;
+	struct sockaddr_in cli_addr;
+	pthread_t tid;
 
   	/* Socket settings */
-  	listenfd = socket(AF_INET, SOCK_STREAM, 0);
-  	serv_addr.sin_family = AF_INET;
-  	serv_addr.sin_addr.s_addr = inet_addr(ip);
-  	serv_addr.sin_port = htons(port);
+	listenfd = socket(AF_INET, SOCK_STREAM, 0);
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_addr.s_addr = inet_addr(ip);
+	serv_addr.sin_port = htons(port);
 
   	/* Ignore pipe signals */
 	signal(SIGPIPE, SIG_IGN);	//為了防止由於向已經關閉的套接字寫入而終止程序
-
 	if(setsockopt(listenfd, SOL_SOCKET,(SO_REUSEPORT | SO_REUSEADDR),(char*)&option,sizeof(option)) < 0){
 		perror("ERROR: setsockopt failed");
     	return EXIT_FAILURE;
 	}
-
 	/* Bind */
   	if(bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
     	perror("ERROR: Socket binding failed");
     	return EXIT_FAILURE;
   	}
-
   	/* Listen */
   	if (listen(listenfd, 10) < 0) {
-    perror("ERROR: Socket listening failed");
-    return EXIT_FAILURE;
+    	perror("ERROR: Socket listening failed");
+    	return EXIT_FAILURE;
 	}
-
 	printf("=== WELCOME TO THE CHATROOM ===\n");
-
 	init_file();
 	read_accountfile(&userAccountDatabase);
-
 	while(1){
 		socklen_t clilen = sizeof(cli_addr);
 		connfd = accept(listenfd, (struct sockaddr*)&cli_addr, &clilen);
-
-		/* Check if max clients is reached */	
 		if((cli_count + 1) == MAX_CLIENTS){
 			printf("Max clients reached. Rejected: ");
 			print_client_addr(cli_addr);
@@ -664,26 +691,17 @@ int main(int argc, char **argv){
 			close(connfd);
 			continue;
 		}
-
-		/* Client settings */
 		client_t *cli = (client_t *)malloc(sizeof(client_t));
 		cli->address = cli_addr;
 		cli->sockfd = connfd;
 		cli->uid = uid++;
-
-		/* Add client to the queue and fork thread */
 		queue_add(cli);
 		ThreadArgs threadArgs = {&userAccountDatabase, cli};
 		pthread_create(&tid, NULL, &handle_client, (void*)&threadArgs);
-
-		/* Reduce CPU usage */
 		sleep(1);
 	}
 	// Close the file
 	fclose(logfile);
 	fclose(accountfile);
-
 	return EXIT_SUCCESS;
 }
-
-           
