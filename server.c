@@ -148,6 +148,33 @@ void init_file() {
         perror("ERROR: Could not open file");
         exit(EXIT_FAILURE);
     }
+	//----------------------------------------------
+	sprintf(filename, "room%d.txt", room);
+    logfile = fopen(filename, "a+"); // 以讀寫模式開啟檔案
+    if (logfile == NULL) {
+        perror("ERROR: Could not open file");
+        exit(EXIT_FAILURE);
+    }
+	//-----初始化record_array-------
+    fseek(logfile, 0, SEEK_SET);// 將檔案指標移到檔案開頭
+    char line[1000]; // 假設一行最多1000個字元
+    while (fgets(line, sizeof(line), logfile) != NULL) {
+		char *result = strchr(line, ':');
+		char name[100], value[100]; // 使用字符陣列來存儲字符串
+		if (result != NULL) {
+			sscanf(line, "%[^:]:%[^\n]", name, value);
+			strcpy(record_array.record_arr[record_array.msg_ct].message,value);//存到server.c的紀錄中
+			strcpy(record_array.record_arr[record_array.msg_ct].name,name);//存到server.c的紀錄中
+			record_array.msg_ct=(record_array.msg_ct+1)%500;
+			//printf("name:%s value:%s\n", name, value);
+		} 
+	}
+	//-----------------------------------------------
+	printf("in init file\n");
+	for(int i=0;i<record_array.msg_ct;i++){
+		printf("%s %s\n",record_array.record_arr[i].name,record_array.record_arr[i].message);
+	}
+	printf("end of init file\n");
 	pthread_mutex_unlock(&file_mutex);  // 解鎖
 }
 void send_message_to_specific_user(char *s, int uid);
@@ -170,15 +197,16 @@ void read_record_file(int target_user_uid) {
 	int line_ct=0;
     while (fgets(line, sizeof(line), logfile) != NULL) {
 		char line_to_print[1002];
-		if(line_ct!=0){
-			strcpy(line_to_print,"> ");
-			strcat(line_to_print, line); // 將 str2 附加到 str1 的末尾
-		}
+
+		strcpy(line_to_print,"> ");
+		strcat(line_to_print, line); // 將 str2 附加到 str1 的末尾
+		
 		printf("%s",line_to_print);
 		send_message_to_specific_user(line_to_print, target_user_uid);
 		line_ct++;
         //printf("Hi\n"); // 每次讀取一行，直到達到檔案結尾
     }
+	if(line_ct==0)send_message_to_specific_user("> ///-No Chat Log-///\n", target_user_uid);
 	send_message_to_specific_user("> ///End of Chat Log///\n", target_user_uid);
     //fclose(logfile); // 關閉檔案 這邊不能關閉的原因是因為他是全域變數
     pthread_mutex_unlock(&file_mutex);  // 解鎖
@@ -402,7 +430,7 @@ void KMPSearch(const char *pat, const struct record_node node,int uid,int *found
 			strcat(to_user,": ");
 			strcat(to_user,node.message);
 			strcat(to_user,"\n");
-			printf("to_user : %s",to_user);
+			//printf("to_user : %s",to_user);
 			send_message_to_specific_user(to_user, uid);
             break;
         } else if (i < N && pat[j] != node.message[i]) {
@@ -418,6 +446,10 @@ void KMPSearch(const char *pat, const struct record_node node,int uid,int *found
 
 // 在字串陣列中進行KMP演算法的查找
 void findSubstringInArray(struct record_arr obj, int size, const char *substr,int uid) {
+	// printf("in KMP\n");
+	// for(int i=0;i<obj.msg_ct;i++){
+	// 	printf("%s %s\n",obj.record_arr[i].name,obj.record_arr[i].message);
+	// }
     int found_bool=0;
 	send_message_to_specific_user("The result:\n", uid);
 	for (int i = 0; i < size; ++i) {

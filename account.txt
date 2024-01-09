@@ -1,8 +1,6 @@
-wei 123
 Yuki 789
 Rose 456
 Eason 777
-Max 789
 Eddy 1035
 Alice 1245
 Max 999
