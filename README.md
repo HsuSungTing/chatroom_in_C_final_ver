@@ -6,7 +6,7 @@ features:
 
 1.收回訊息
 
-2.黑名單建立(linked list)
+2.黑名單(linked list)
 
 3.聊天紀錄寫檔
 
@@ -17,3 +17,5 @@ features:
 6.訊息查找(KMP algo)
 
 7.查詢線上成員
+
+8.聊天紀錄復原
