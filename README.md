@@ -1,4 +1,4 @@
-sudo apt-get install libusb-1.0-0-dev
+編譯方式: sudo apt-get install libusb-1.0-0-dev
 
 參考自:https://www.youtube.com/watch?v=fNerEo6Lstw
 
