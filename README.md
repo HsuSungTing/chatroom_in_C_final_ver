@@ -1,5 +1,9 @@
 sudo apt-get install libusb-1.0-0-dev
 
+參考自:https://www.youtube.com/watch?v=fNerEo6Lstw
+
+code link: https://github.com/HsuSungTing/chatroom_in_C_final_ver
+
 features:
 
 0.聊天室訊息傳遞(queue)
